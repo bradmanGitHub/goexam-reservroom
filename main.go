@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,7 +14,6 @@ import (
 
 func main() {
 	r := gin.Default()
-	r.GET("/", defaultHandler)
 
 	r.POST("/bookings/", createBooking)
 	r.GET("/bookings/", getAllBookings)
@@ -33,28 +31,23 @@ type Booking struct {
 	End   time.Time `json:"end"`
 }
 
-func defaultHandler(c *gin.Context) { //รวมทั้ง request , responnse ใน param เดียว
-	c.Header("Content-Type", "text/html")
-	c.String(http.StatusOK, `<!doctype html><html><body><h1 style="color:red">Hello</h1></body></html>`)
-}
-
 func createBooking(c *gin.Context) {
 	var b Booking
-	if err := c.Bind(&b); err != nil { //ใช้ method Bind โดยโยน pointer ของ struct(&) ที่ต้องการรับค่า
+	if err := c.Bind(&b); err != nil {
 		return
 	}
-	log.Printf("%+v\n", b) //format +v print struct จะดูง่าย
+	log.Printf("%+v\n", b)
 
 	ctx := context.Background()
 	check := func(err error) {
 		if err != nil {
 			log.Println(err)
-			os.Exit(1)
 		}
 	}
 	// Open connection to MySQL Database
-	db, err := sql.Open("mysql", "root:cityhunter@/bookingdb")
+	db, err := sql.Open("mysql", "root:cityhunter@/bookingdb?parseTime=true&loc=Asia%2FJakarta&charset=utf8mb4&collation=utf8mb4_unicode_ci")
 	check(err)
+	defer db.Close()
 
 	stmt, err := db.PrepareContext(ctx, "INSERT INTO tb_booking(NAME, ROOM, START, END) values (?,?,?,?)")
 	check(err)
@@ -70,37 +63,20 @@ func createBooking(c *gin.Context) {
 }
 
 func getAllBookings(c *gin.Context) {
-	// booking := []Booking{
-	// 	// {ID: 1, Name: "Michael", Room: "Room1", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
-	// 	// {ID: 2, Name: "John", Room: "Room2", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
-	// 	// {ID: 3, Name: "Jason", Room: "Room3", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
-	// }
-
 	ctx := context.Background()
 	check := func(err error) {
 		if err != nil {
 			log.Println(err)
-			os.Exit(1)
 		}
 	}
-	// Open connection to MySQL Database
-	//db, err := sql.Open("mysql", "root:cityhunter@bookingdb?parseTime=true")
 	db, err := sql.Open("mysql", "root:cityhunter@/bookingdb?parseTime=true")
 	check(err)
+	defer db.Close()
 
-	//qry := "SELECT id, title, body, created_at, updated_at FROM tb_booking WHERE id = ?"
-	qry := "SELECT id, name, room, start, end FROM tb_booking "
+	qry := "SELECT id, name, room, start, end FROM tb_booking ORDER BY start "
 	stmt, err := db.PrepareContext(ctx, qry)
 	check(err)
 
-	//row := stmt.QueryRowContext(ctx, 1)
-	// row := stmt.QueryRowContext(ctx)
-
-	// var booking Booking
-	// err = row.Scan(&booking.ID, &booking.Name, &booking.Room, &booking.Start, &booking.End)
-	// check(err)
-
-	//rows, err := stmt.QueryContext(ctx, 1)
 	rows, err := stmt.QueryContext(ctx)
 	check(err)
 	var bookingSlice []Booking
@@ -116,13 +92,47 @@ func getAllBookings(c *gin.Context) {
 
 func getBookingByID(c *gin.Context) {
 	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"msg": "receive_id " + id,
-	})
+
+	ctx := context.Background()
+	check := func(err error) {
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	// Open connection to MySQL Database
+	db, err := sql.Open("mysql", "root:cityhunter@/bookingdb?parseTime=true")
+	check(err)
+	defer db.Close()
+
+	qry := "SELECT ID, NAME, ROOM, START, END FROM tb_booking WHERE id = ?"
+	stmt, err := db.PrepareContext(ctx, qry)
+	check(err)
+
+	row := stmt.QueryRowContext(ctx, id)
+	var booking Booking
+	err = row.Scan(&booking.ID, &booking.Name, &booking.Room, &booking.Start, &booking.End)
+	check(err)
+	c.JSON(http.StatusOK, booking)
 }
 func deleteBooking(c *gin.Context) {
 	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"msg": "receive_id " + id,
-	})
+	ctx := context.Background()
+	check := func(err error) {
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	// Open connection to MySQL Database
+	db, err := sql.Open("mysql", "root:cityhunter@/bookingdb")
+	check(err)
+	defer db.Close()
+
+	stmt, err := db.PrepareContext(ctx, "DELETE FROM tb_booking WHERE id = ?")
+	check(err)
+
+	_, err = stmt.ExecContext(ctx, id)
+	check(err)
+
+	c.Header("Content-Type", "text/html")
+	c.String(http.StatusOK, `""`)
 }
