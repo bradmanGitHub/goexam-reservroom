@@ -31,9 +31,6 @@ type Booking struct {
 	Room  string    `json:"room"`
 	Start time.Time `json:"start"`
 	End   time.Time `json:"end"`
-
-	//Done bool   `json:"-"` //ignore field ที่ไม่ต้องการให้ออกเป็น json
-	//Done bool   `json:"done,omitempty"` //ignore field ที่เป็น zero value ที่ไม่ต้องการให้ออกเป็น json
 }
 
 func defaultHandler(c *gin.Context) { //รวมทั้ง request , responnse ใน param เดียว
@@ -62,9 +59,6 @@ func createBooking(c *gin.Context) {
 	stmt, err := db.PrepareContext(ctx, "INSERT INTO tb_booking(NAME, ROOM, START, END) values (?,?,?,?)")
 	check(err)
 
-	//startDate, err := time.Parse("2019-03-22T07:00:00Z", "2019-03-22 07:00:00")
-	//endDate, err := time.Parse("2019-03-22T07:00:00Z", "2019-03-22 08:00:00")
-
 	result, err := stmt.ExecContext(ctx, b.Name, b.Room, b.Start, b.End)
 	check(err)
 	lastID, _ := result.LastInsertId()
@@ -76,12 +70,48 @@ func createBooking(c *gin.Context) {
 }
 
 func getAllBookings(c *gin.Context) {
-	booking := []Booking{
-		// {ID: 1, Name: "Michael", Room: "Room1", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
-		// {ID: 2, Name: "John", Room: "Room2", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
-		// {ID: 3, Name: "Jason", Room: "Room3", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
+	// booking := []Booking{
+	// 	// {ID: 1, Name: "Michael", Room: "Room1", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
+	// 	// {ID: 2, Name: "John", Room: "Room2", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
+	// 	// {ID: 3, Name: "Jason", Room: "Room3", Start: time.Now().Format("2006-01-02 15:04:05"), End: time.Now().Format("2006-01-02 15:04:05")},
+	// }
+
+	ctx := context.Background()
+	check := func(err error) {
+		if err != nil {
+			log.Println(err)
+			os.Exit(1)
+		}
 	}
-	c.JSON(http.StatusOK, booking)
+	// Open connection to MySQL Database
+	//db, err := sql.Open("mysql", "root:cityhunter@bookingdb?parseTime=true")
+	db, err := sql.Open("mysql", "root:cityhunter@/bookingdb?parseTime=true")
+	check(err)
+
+	//qry := "SELECT id, title, body, created_at, updated_at FROM tb_booking WHERE id = ?"
+	qry := "SELECT id, name, room, start, end FROM tb_booking "
+	stmt, err := db.PrepareContext(ctx, qry)
+	check(err)
+
+	//row := stmt.QueryRowContext(ctx, 1)
+	// row := stmt.QueryRowContext(ctx)
+
+	// var booking Booking
+	// err = row.Scan(&booking.ID, &booking.Name, &booking.Room, &booking.Start, &booking.End)
+	// check(err)
+
+	//rows, err := stmt.QueryContext(ctx, 1)
+	rows, err := stmt.QueryContext(ctx)
+	check(err)
+	var bookingSlice []Booking
+	var booking Booking
+	for rows.Next() {
+		rows.Scan(&booking.ID, &booking.Name, &booking.Room, &booking.Start, &booking.End)
+		bookingSlice = append(bookingSlice, booking)
+	}
+	fmt.Println(bookingSlice)
+
+	c.JSON(http.StatusOK, bookingSlice)
 }
 
 func getBookingByID(c *gin.Context) {
